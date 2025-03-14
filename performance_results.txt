@@ -1,0 +1,9 @@
+N p M avg_steps avg_time bottom_fraction
+Running Forest Fire with N=100, p=0.45, M=50, using 1 MPI tasks.
+RESULT: N=100 p=0.45 M=50 avg_steps=17.42 avg_time=0.0012967 bottom_fraction=0
+Running Forest Fire with N=100, p=0.45, M=50, using 2 MPI tasks.
+RESULT: N=100 p=0.45 M=50 avg_steps=17.42 avg_time=0.0019986 bottom_fraction=0
+Running Forest Fire with N=100, p=0.45, M=50, using 4 MPI tasks.
+RESULT: N=100 p=0.45 M=50 avg_steps=17.18 avg_time=0.111053 bottom_fraction=0
+Running Forest Fire with N=100, p=0.45, M=50, using 8 MPI tasks.
+RESULT: N=100 p=0.45 M=50 avg_steps=15.2 avg_time=0.538486 bottom_fraction=0

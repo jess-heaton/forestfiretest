@@ -1,0 +1,31 @@
+N np p M avg_steps avg_time bottom_fraction
+Running Forest Fire with N=50, p=1, M=50, using 1 MPI tasks.
+RESULT: N=50 p=1 M=50 avg_steps=49 avg_time=0.00154469 bottom_fraction=1
+Running Forest Fire with N=50, p=1, M=50, using 2 MPI tasks.
+RESULT: N=50 p=1 M=50 avg_steps=24 avg_time=0.00106245 bottom_fraction=0
+Running Forest Fire with N=50, p=1, M=50, using 4 MPI tasks.
+RESULT: N=50 p=1 M=50 avg_steps=11 avg_time=0.0677293 bottom_fraction=0
+Running Forest Fire with N=50, p=1, M=50, using 8 MPI tasks.
+RESULT: N=50 p=1 M=50 avg_steps=5 avg_time=0.197571 bottom_fraction=0
+Running Forest Fire with N=50, p=1, M=50, using 16 MPI tasks.
+RESULT: N=50 p=1 M=50 avg_steps=2 avg_time=0.456926 bottom_fraction=0
+Running Forest Fire with N=100, p=1, M=50, using 1 MPI tasks.
+RESULT: N=100 p=1 M=50 avg_steps=99 avg_time=0.00851365 bottom_fraction=1
+Running Forest Fire with N=100, p=1, M=50, using 2 MPI tasks.
+RESULT: N=100 p=1 M=50 avg_steps=49 avg_time=0.00515295 bottom_fraction=0
+Running Forest Fire with N=100, p=1, M=50, using 4 MPI tasks.
+RESULT: N=100 p=1 M=50 avg_steps=24 avg_time=0.158859 bottom_fraction=0
+Running Forest Fire with N=100, p=1, M=50, using 8 MPI tasks.
+RESULT: N=100 p=1 M=50 avg_steps=11 avg_time=0.382851 bottom_fraction=0
+Running Forest Fire with N=100, p=1, M=50, using 16 MPI tasks.
+RESULT: N=100 p=1 M=50 avg_steps=5 avg_time=0.863188 bottom_fraction=0
+Running Forest Fire with N=500, p=1, M=50, using 1 MPI tasks.
+RESULT: N=500 p=1 M=50 avg_steps=499 avg_time=0.953062 bottom_fraction=1
+Running Forest Fire with N=500, p=1, M=50, using 2 MPI tasks.
+RESULT: N=500 p=1 M=50 avg_steps=249 avg_time=0.616777 bottom_fraction=0
+Running Forest Fire with N=500, p=1, M=50, using 4 MPI tasks.
+RESULT: N=500 p=1 M=50 avg_steps=124 avg_time=0.930608 bottom_fraction=0
+Running Forest Fire with N=500, p=1, M=50, using 8 MPI tasks.
+RESULT: N=500 p=1 M=50 avg_steps=61 avg_time=2.06081 bottom_fraction=0
+Running Forest Fire with N=500, p=1, M=50, using 16 MPI tasks.
+RESULT: N=500 p=1 M=50 avg_steps=30 avg_time=4.41959 bottom_fraction=0
