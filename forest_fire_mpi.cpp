@@ -167,48 +167,59 @@ int main(int argc, char* argv[]) {
 
         // Continue until no cells burning
         while (true) {
+
+            // Exchange halos
             exchangeBoundaries(grid, rStart, rEnd, iproc, nproc);
+
+            // Perfrom one simulation step, returns true if fire still burning
             bool localBurning = step(grid, rStart, rEnd);
             int localFlag = localBurning ? 1 : 0;
             int globalFlag = 0;
+
+            // Combine flags from all processes
             MPI_Allreduce(&localFlag, &globalFlag, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+
+            // True if at least one cell is stil burning in any process
             if (globalFlag > 0)
                 steps++;
             else
                 break;
         }
+
         double runTime = MPI_Wtime() - startTime;
         totalSteps += steps;
         totalTime += runTime;
         
-        // Check if the fire reached the bottom (only the rank owning the bottom row does this).
-        bool bottomReachedLocal = false;
+        // For bottom rank - check if last row caught fire
+        bool bottomHitLocal = false;
         if (rEnd == N) {
             for (int j = 0; j < N; j++) {
                 if (grid[localRows][j] == DEAD || grid[localRows][j] == BURNING) {
-                    bottomReachedLocal = true;
+                    bottomHitLocal = true;
                     break;
                 }
             }
         }
-        int localBottom = bottomReachedLocal ? 1 : 0;
+        int localBottom = bottomHitLocal ? 1 : 0;
         int globalBottom = 0;
+
+        // Aggregate hit bottom counts
         MPI_Reduce(&localBottom, &globalBottom, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
         if (iproc == 0 && globalBottom > 0)
             totalHitBottom++;
     }
     
-    // Calculate averages.
+    // Average over the M simulations
     double avgSteps = totalSteps / M;
     double avgTime = totalTime / M;
     double bottomFraction = (iproc == 0) ? (double(totalHitBottom) / M) : 0.0;
     
-    // Print one standardized result line (for use in your report).
+    // Print results
     if (iproc == 0) {
-        std::cout << "RESULT: N=" << N 
+        std::cout << "For N=" << N 
                   << " p=" << p 
                   << " M=" << M 
-                  << " avg_steps=" << avgSteps 
+                  << ", avg_steps=" << avgSteps 
                   << " avg_time=" << avgTime 
                   << " bottom_fraction=" << bottomFraction 
                   << std::endl;
