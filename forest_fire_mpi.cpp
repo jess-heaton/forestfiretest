@@ -4,41 +4,47 @@
 #include <cstdlib>
 #include <ctime>
 
-// Define cell states
-enum CellState {
+
+// Define states
+enum states {
     EMPTY = 0,
     TREE = 1,
     BURNING = 2,
     DEAD = 3
 };
 
-// Distribute rows among MPI tasks (1D domain decomposition)
-void distributeRows(int N, int iproc, int nproc, int &rowStart, int &rowEnd) {
-    int rowsPerRank = N / nproc;
-    rowStart = iproc * rowsPerRank;
+// Distribute rows over mpi tasks
+void distributeRows(int N, int iproc, int nproc, int &rStart, int &rEnd) {
+    int rankRows = N / nproc;
+    rStart = iproc * rankRows;
     if (iproc == nproc - 1)
-        rowEnd = N;
+        rEnd = N;
     else
-        rowEnd = rowStart + rowsPerRank;
+        rEnd = rStart + rankRows;
 }
 
-// Initialize the local grid for one simulation run.
-// The grid has extra halo rows: indices 0 and localRows+1.
-std::vector<std::vector<CellState>> initLocalGrid(int globalN, double p, int rowStart, int rowEnd, int iproc, unsigned int seed) {
-    int localRows = rowEnd - rowStart;
-    std::vector<std::vector<CellState>> grid(localRows + 2, std::vector<CellState>(globalN, EMPTY));
-    
-    srand(seed); // Set process-specific random seed
+// Initialize local grid
+std::vector<std::vector<states>> initLocalGrid(int globalN, double p, int rStart, int rEnd, int iproc, unsigned int seed) {
+    int localRows = rEnd - rStart;
 
-    // Fill real rows (indices 1 to localRows) with TREE with probability p.
+    // Add 2 halo rows
+    std::vector<std::vector<states>> grid(localRows + 2, std::vector<states>(globalN, EMPTY));
+    
+    srand(seed);
+
+    // Fill rows (except halos) with 'TREE' with probs p
     for (int i = 1; i <= localRows; i++) {
         for (int j = 0; j < globalN; j++) {
             double r = double(rand()) / RAND_MAX;
-            grid[i][j] = (r < p) ? TREE : EMPTY;
+            if (r < p) {
+                grid[i][j] = TREE;
+            } else {
+                grid[i][j] = EMPTY;
+            }
         }
     }
-    // If this rank contains the global top row, ignite trees there.
-    if (rowStart == 0) {
+    // Ignite top row of trees (if included in this rank)
+    if (rStart == 0) {
         for (int j = 0; j < globalN; j++) {
             if (grid[1][j] == TREE)
                 grid[1][j] = BURNING;
@@ -47,27 +53,29 @@ std::vector<std::vector<CellState>> initLocalGrid(int globalN, double p, int row
     return grid;
 }
 
-// Exchange halo rows between neighboring MPI tasks.
-void exchangeBoundaries(std::vector<std::vector<CellState>> &grid, int rowStart, int rowEnd, int iproc, int nproc) {
+// Exchange halo rows between neighboring MPI tasks
+void exchangeBoundaries(std::vector<std::vector<states>> &grid, int rStart, int rEnd, int iproc, int nproc) {
     int globalN = grid[0].size();
-    int localRows = rowEnd - rowStart;
-    int above = (iproc == 0) ? MPI_PROC_NULL : iproc - 1;
-    int below = (iproc == nproc - 1) ? MPI_PROC_NULL : iproc + 1;
+    int localRows = rEnd - rStart;
+
+    // Finds rank of neighbouring process or sets NULL
+    int high = (iproc == 0) ? MPI_PROC_NULL : iproc - 1;
+    int low = (iproc == nproc - 1) ? MPI_PROC_NULL : iproc + 1;
     
     // Send first real row upward; receive into halo row 0.
-    MPI_Send(grid[1].data(), globalN, MPI_INT, above, 0, MPI_COMM_WORLD);
-    MPI_Recv(grid[0].data(), globalN, MPI_INT, above, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Send(grid[1].data(), globalN, MPI_INT, high, 0, MPI_COMM_WORLD);
+    MPI_Recv(grid[0].data(), globalN, MPI_INT, high, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     
     // Send last real row downward; receive into halo row localRows+1.
-    MPI_Send(grid[localRows].data(), globalN, MPI_INT, below, 1, MPI_COMM_WORLD);
-    MPI_Recv(grid[localRows+1].data(), globalN, MPI_INT, below, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Send(grid[localRows].data(), globalN, MPI_INT, low, 1, MPI_COMM_WORLD);
+    MPI_Recv(grid[localRows+1].data(), globalN, MPI_INT, low, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 }
 
 // Perform one simulation step (fire spread) and return true if any burning cells remain.
-bool doOneStep(std::vector<std::vector<CellState>> &grid, int rowStart, int rowEnd) {
+bool doOneStep(std::vector<std::vector<states>> &grid, int rStart, int rEnd) {
     int globalN = grid[0].size();
-    int localRows = rowEnd - rowStart;
-    std::vector<std::vector<CellState>> newGrid = grid;
+    int localRows = rEnd - rStart;
+    std::vector<std::vector<states>> newGrid = grid;
     bool anyBurning = false;
     
     // Loop over real rows only.
@@ -127,9 +135,9 @@ int main(int argc, char* argv[]) {
     MPI_Bcast(&M, 1, MPI_INT, 0, MPI_COMM_WORLD);
     
     // Distribute rows among tasks.
-    int rowStart, rowEnd;
-    distributeRows(N, iproc, nproc, rowStart, rowEnd);
-    int localRows = rowEnd - rowStart;
+    int rStart, rEnd;
+    distributeRows(N, iproc, nproc, rStart, rEnd);
+    int localRows = rEnd - rStart;
     
     // Variables for accumulating results over M runs.
     double totalSteps = 0.0;
@@ -139,13 +147,13 @@ int main(int argc, char* argv[]) {
     for (int run = 0; run < M; run++) {
         // Use a unique seed per run and process.
         unsigned int seed = static_cast<unsigned int>(time(NULL)) + run * 1000 + iproc;
-        auto grid = initLocalGrid(N, p, rowStart, rowEnd, iproc, seed);
+        auto grid = initLocalGrid(N, p, rStart, rEnd, iproc, seed);
         
         double startTime = MPI_Wtime();
         int steps = 0;
         while (true) {
-            exchangeBoundaries(grid, rowStart, rowEnd, iproc, nproc);
-            bool localBurning = doOneStep(grid, rowStart, rowEnd);
+            exchangeBoundaries(grid, rStart, rEnd, iproc, nproc);
+            bool localBurning = doOneStep(grid, rStart, rEnd);
             int localFlag = localBurning ? 1 : 0;
             int globalFlag = 0;
             MPI_Allreduce(&localFlag, &globalFlag, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
@@ -160,7 +168,7 @@ int main(int argc, char* argv[]) {
         
         // Check if the fire reached the bottom (only the rank owning the bottom row does this).
         bool bottomReachedLocal = false;
-        if (rowEnd == N) {
+        if (rEnd == N) {
             for (int j = 0; j < N; j++) {
                 if (grid[localRows][j] == DEAD || grid[localRows][j] == BURNING) {
                     bottomReachedLocal = true;
