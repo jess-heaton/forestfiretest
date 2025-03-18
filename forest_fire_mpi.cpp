@@ -43,7 +43,7 @@ std::vector<std::vector<states>> initLocalGrid(int globalN, double p, int rStart
             }
         }
     }
-    // Ignite top row of trees (if included in this rank)
+    // Ignite first row of trees (if included in this rank)
     if (rStart == 0) {
         for (int j = 0; j < globalN; j++) {
             if (grid[1][j] == TREE)
@@ -62,28 +62,31 @@ void exchangeBoundaries(std::vector<std::vector<states>> &grid, int rStart, int 
     int high = (iproc == 0) ? MPI_PROC_NULL : iproc - 1;
     int low = (iproc == nproc - 1) ? MPI_PROC_NULL : iproc + 1;
     
-    // Send first real row upward; receive into halo row 0.
+    // Send first row to halo row 0
     MPI_Send(grid[1].data(), globalN, MPI_INT, high, 0, MPI_COMM_WORLD);
     MPI_Recv(grid[0].data(), globalN, MPI_INT, high, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     
-    // Send last real row downward; receive into halo row localRows+1.
+    // Send last row to halo row localRows+1
     MPI_Send(grid[localRows].data(), globalN, MPI_INT, low, 1, MPI_COMM_WORLD);
     MPI_Recv(grid[localRows+1].data(), globalN, MPI_INT, low, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 }
 
-// Perform one simulation step (fire spread) and return true if any burning cells remain.
-bool doOneStep(std::vector<std::vector<states>> &grid, int rStart, int rEnd) {
+// One time step and returns false if fire extinguished
+bool step(std::vector<std::vector<states>> &grid, int rStart, int rEnd) {
     int globalN = grid[0].size();
     int localRows = rEnd - rStart;
+
+    // Copy of current grid
     std::vector<std::vector<states>> newGrid = grid;
     bool anyBurning = false;
     
-    // Loop over real rows only.
+    // Loop over rows (not halso)
     for (int i = 1; i <= localRows; i++) {
         for (int j = 0; j < globalN; j++) {
             if (grid[i][j] == BURNING) {
-                newGrid[i][j] = DEAD; // Burning cell becomes dead.
-                // Spread fire to neighbors (Von Neumann: up, down, left, right).
+                newGrid[i][j] = DEAD;
+                
+                // Spread fire to neighbours
                 int di[4] = {-1, 1, 0, 0};
                 int dj[4] = {0, 0, -1, 1};
                 for (int k = 0; k < 4; k++) {
@@ -98,7 +101,8 @@ bool doOneStep(std::vector<std::vector<states>> &grid, int rStart, int rEnd) {
         }
     }
     grid = newGrid;
-    // Check if any burning cell remains.
+    
+    // Check for burning trees
     for (int i = 1; i <= localRows; i++) {
         for (int j = 0; j < globalN; j++) {
             if (grid[i][j] == BURNING) {
@@ -109,8 +113,10 @@ bool doOneStep(std::vector<std::vector<states>> &grid, int rStart, int rEnd) {
         if (anyBurning)
             break;
     }
+    
     return anyBurning;
 }
+
 
 int main(int argc, char* argv[]) {
     MPI_Init(&argc, &argv);
@@ -118,18 +124,21 @@ int main(int argc, char* argv[]) {
     MPI_Comm_rank(MPI_COMM_WORLD, &iproc);
     MPI_Comm_size(MPI_COMM_WORLD, &nproc);
     
-    // Command-line arguments:
-    // argv[1] = N (grid size), argv[2] = p (tree probability), argv[3] = M (number of runs)
+    // Defaults
     int N = 100;
     double p = 0.5;
     int M = 50;
+
+    // Check cmd line for args and overwrite
     if (iproc == 0) {
         if (argc >= 2) N = std::atoi(argv[1]);
         if (argc >= 3) p = std::atof(argv[2]);
         if (argc >= 4) M = std::atoi(argv[3]);
-        std::cout << "Running Forest Fire with N=" << N << ", p=" << p << ", M=" << M 
-                  << ", using " << nproc << " MPI tasks." << std::endl;
+        std::cout << "N=" << N << " p=" << p << " M=" << M 
+                  << "  MPI tasks:" << nproc << std::endl;
     }
+
+    // Broadcast to all processes
     MPI_Bcast(&N, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&p, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     MPI_Bcast(&M, 1, MPI_INT, 0, MPI_COMM_WORLD);
@@ -153,7 +162,7 @@ int main(int argc, char* argv[]) {
         int steps = 0;
         while (true) {
             exchangeBoundaries(grid, rStart, rEnd, iproc, nproc);
-            bool localBurning = doOneStep(grid, rStart, rEnd);
+            bool localBurning = step(grid, rStart, rEnd);
             int localFlag = localBurning ? 1 : 0;
             int globalFlag = 0;
             MPI_Allreduce(&localFlag, &globalFlag, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
