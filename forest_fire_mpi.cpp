@@ -143,23 +143,29 @@ int main(int argc, char* argv[]) {
     MPI_Bcast(&p, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     MPI_Bcast(&M, 1, MPI_INT, 0, MPI_COMM_WORLD);
     
-    // Distribute rows among tasks.
+    // Distribute rows
     int rStart, rEnd;
     distributeRows(N, iproc, nproc, rStart, rEnd);
     int localRows = rEnd - rStart;
-    
-    // Variables for accumulating results over M runs.
-    double totalSteps = 0.0;
+
+    // Accumulate results over all M sims
+    double totalSteps = 0.0; 
     double totalTime = 0.0;
-    int totalBottom = 0; // Count how many runs reached the bottom (only computed on the rank owning the bottom).
-    
+    int totalHitBottom = 0;
+
+    // Loop over M sim runs
     for (int run = 0; run < M; run++) {
-        // Use a unique seed per run and process.
-        unsigned int seed = static_cast<unsigned int>(time(NULL)) + run * 1000 + iproc;
-        auto grid = initLocalGrid(N, p, rStart, rEnd, iproc, seed);
         
+        // Unique seed for each process
+        unsigned int seed = static_cast<unsigned int>(time(NULL)) + run * 1000 + iproc;
+
+        // Init local grid
+        auto grid = initLocalGrid(N, p, rStart, rEnd, iproc, seed);
+
         double startTime = MPI_Wtime();
         int steps = 0;
+
+        // Continue until no cells burning
         while (true) {
             exchangeBoundaries(grid, rStart, rEnd, iproc, nproc);
             bool localBurning = step(grid, rStart, rEnd);
@@ -189,13 +195,13 @@ int main(int argc, char* argv[]) {
         int globalBottom = 0;
         MPI_Reduce(&localBottom, &globalBottom, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
         if (iproc == 0 && globalBottom > 0)
-            totalBottom++;
+            totalHitBottom++;
     }
     
     // Calculate averages.
     double avgSteps = totalSteps / M;
     double avgTime = totalTime / M;
-    double bottomFraction = (iproc == 0) ? (double(totalBottom) / M) : 0.0;
+    double bottomFraction = (iproc == 0) ? (double(totalHitBottom) / M) : 0.0;
     
     // Print one standardized result line (for use in your report).
     if (iproc == 0) {
