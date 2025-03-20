@@ -4,7 +4,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <fstream>
-#include <cstring>  // For std::strcpy
+#include <cstring>
 
 // Define states
 enum states {
@@ -25,7 +25,7 @@ void distributeRows(int N, int iproc, int nproc, int &rStart, int &rEnd) {
 }
 
 // Read initial global grid from a file
-// File format: first integer is grid size N (grid is N x N), followed by N*N integers representing states.
+// File format: first integer is grid size (N) (grid is N x N), followed by N*N integers representing states.
 std::vector<std::vector<states>> readInitialGrid(const std::string &filename, int &globalN) {
     std::ifstream infile(filename);
     if (!infile) {
@@ -68,13 +68,11 @@ std::vector<std::vector<states>> initLocalGridFromFile(const std::vector<std::ve
 // Initialize local grid (random generation)
 std::vector<std::vector<states>> initLocalGrid(int globalN, double p, int rStart, int rEnd, int iproc, unsigned int seed) {
     int localRows = rEnd - rStart;
-
     // Add 2 halo rows
     std::vector<std::vector<states>> grid(localRows + 2, std::vector<states>(globalN, EMPTY));
     
     srand(seed);
-
-    // Fill rows (except halos) with 'TREE' with probs p
+    // Fill rows (except halos) with 'TREE' with probability p
     for (int i = 1; i <= localRows; i++) {
         for (int j = 0; j < globalN; j++) {
             double r = double(rand()) / RAND_MAX;
@@ -99,7 +97,6 @@ std::vector<std::vector<states>> initLocalGrid(int globalN, double p, int rStart
 void exchangeBoundaries(std::vector<std::vector<states>> &grid, int rStart, int rEnd, int iproc, int nproc) {
     int globalN = grid[0].size();
     int localRows = rEnd - rStart;
-
     // Finds rank of neighbouring process or sets NULL
     int high = (iproc == 0) ? MPI_PROC_NULL : iproc - 1;
     int low = (iproc == nproc - 1) ? MPI_PROC_NULL : iproc + 1;
@@ -117,17 +114,14 @@ void exchangeBoundaries(std::vector<std::vector<states>> &grid, int rStart, int 
 bool step(std::vector<std::vector<states>> &grid, int rStart, int rEnd) {
     int globalN = grid[0].size();
     int localRows = rEnd - rStart;
-
     // Copy of current grid
     std::vector<std::vector<states>> newGrid = grid;
     bool anyBurning = false;
-    
-    // Loop over rows (not halso)
+    // Loop over rows (not halos)
     for (int i = 1; i <= localRows; i++) {
         for (int j = 0; j < globalN; j++) {
             if (grid[i][j] == BURNING) {
                 newGrid[i][j] = DEAD;
-                
                 // Spread fire to neighbours
                 int di[4] = {-1, 1, 0, 0};
                 int dj[4] = {0, 0, -1, 1};
@@ -143,7 +137,6 @@ bool step(std::vector<std::vector<states>> &grid, int rStart, int rEnd) {
         }
     }
     grid = newGrid;
-    
     // Check for burning trees
     for (int i = 1; i <= localRows; i++) {
         for (int j = 0; j < globalN; j++) {
@@ -155,10 +148,8 @@ bool step(std::vector<std::vector<states>> &grid, int rStart, int rEnd) {
         if (anyBurning)
             break;
     }
-    
     return anyBurning;
 }
-
 
 int main(int argc, char* argv[]) {
     MPI_Init(&argc, &argv);
@@ -188,8 +179,8 @@ int main(int argc, char* argv[]) {
                   << (useFile ? " Using file: " + filename : " Using random grid") 
                   << std::endl;
     }
-
-    // Broadcast to all processes
+    
+    // Broadcast parameters to all processes
     MPI_Bcast(&N, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&p, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     MPI_Bcast(&M, 1, MPI_INT, 0, MPI_COMM_WORLD);
@@ -212,23 +203,16 @@ int main(int argc, char* argv[]) {
         filename = std::string(fnameBuf);
     }
     
-    // Distribute rows
-    int rStart, rEnd;
-    distributeRows(N, iproc, nproc, rStart, rEnd);
-    int localRows = rEnd - rStart;
-    
-    // Accumulate results over all M sims
-    double totalSteps = 0.0; 
-    double totalTime = 0.0;
-    int totalHitBottom = 0;
-    
-    // For file reading: global grid variable
+    // If using a file, read and broadcast the grid size (N) and the grid
     std::vector<std::vector<states>> globalGrid;
     if (useFile) {
         if (iproc == 0) {
-            globalGrid = readInitialGrid(filename, N);
+            globalGrid = readInitialGrid(filename, N);  // N is updated here from the file
         }
-        // Broadcast the global grid to all processes by flattening it
+        // Broadcast the updated N to all processes so that they use the file's grid size
+        MPI_Bcast(&N, 1, MPI_INT, 0, MPI_COMM_WORLD);
+        
+        // Broadcast the global grid by flattening it
         std::vector<int> flatGrid;
         if (iproc == 0) {
             for (int i = 0; i < N; i++) {
@@ -251,9 +235,18 @@ int main(int argc, char* argv[]) {
         }
     }
     
-    // Loop over M sim runs
+    // Distribute rows
+    int rStart, rEnd;
+    distributeRows(N, iproc, nproc, rStart, rEnd);
+    int localRows = rEnd - rStart;
+    
+    // Accumulate results over all M simulations
+    double totalSteps = 0.0; 
+    double totalTime = 0.0;
+    int totalHitBottom = 0;
+    
+    // Loop over M simulation runs
     for (int run = 0; run < M; run++) {
-        
         // Unique seed for each process
         unsigned int seed = static_cast<unsigned int>(time(NULL)) + run * 1000 + iproc;
         
@@ -268,7 +261,7 @@ int main(int argc, char* argv[]) {
         double startTime = MPI_Wtime();
         int steps = 0;
         
-        // Continue until no cells burning
+        // Continue simulation until no cells are burning
         while (true) {
             exchangeBoundaries(grid, rStart, rEnd, iproc, nproc);
             bool localBurning = step(grid, rStart, rEnd);
@@ -285,7 +278,7 @@ int main(int argc, char* argv[]) {
         totalSteps += steps;
         totalTime += runTime;
         
-        // For bottom rank - check if last row caught fire
+        // For the process owning the bottom of the grid, check if the last row caught fire
         bool bottomHitLocal = false;
         if (rEnd == N) {
             for (int j = 0; j < N; j++) {
