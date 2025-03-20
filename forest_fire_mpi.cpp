@@ -127,18 +127,46 @@ bool step(std::vector<std::vector<states>> &grid, int rStart, int rEnd) {
         for (int j = 0; j < globalN; j++) {
             if (grid[i][j] == BURNING) {
                 newGrid[i][j] = DEAD;
+
+
+                        
+                // Toggle between Moore & Von Neumann rules
+                bool moore = false; 
                 
-                // Spread fire to neighbours
-                int di[4] = {-1, 1, 0, 0};
-                int dj[4] = {0, 0, -1, 1};
-                for (int k = 0; k < 4; k++) {
-                    int ni = i + di[k];
-                    int nj = j + dj[k];
-                    if (ni >= 0 && ni <= localRows + 1 && nj >= 0 && nj < globalN) {
-                        if (grid[ni][nj] == TREE)
+                // Von Neumann
+                int d4i[4] = { -1,  1,  0,  0 };
+                int d4j[4] = {  0,  0, -1,  1 };
+                
+                // Moore
+                int d8i[8] = { -1, -1, -1,  0,  0,  1,  1,  1 };
+                int d8j[8] = { -1,  0,  1, -1,  1, -1,  0,  1 };
+                
+                int nCount = moore ? 8 : 4;
+                
+                for (int k = 0; k < nCount; k++) {
+                    // Determine neighbor (ni, nj)
+                    int ni, nj;
+                    if (moore) {
+                        ni = i + d8i[k];
+                        nj = j + d8j[k];
+                    } else {
+                        ni = i + d4i[k];
+                        nj = j + d4j[k];
+                    }
+                
+                    // Check boundary
+                    if (ni >= 0 && ni <= localRows + 1 && nj >= 0 && nj < globalN)
+                    {
+                        if (grid[ni][nj] == TREE) {
                             newGrid[ni][nj] = BURNING;
+                        }
                     }
                 }
+
+
+
+
+                
             }
         }
     }
