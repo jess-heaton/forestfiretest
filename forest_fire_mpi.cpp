@@ -122,6 +122,7 @@ bool step(std::vector<std::vector<states>> &grid, int rStart, int rEnd) {
         for (int j = 0; j < globalN; j++) {
             if (grid[i][j] == BURNING) {
                 newGrid[i][j] = DEAD;
+                
                 // Spread fire to neighbours
                 int di[4] = {-1, 1, 0, 0};
                 int dj[4] = {0, 0, -1, 1};
@@ -131,8 +132,14 @@ bool step(std::vector<std::vector<states>> &grid, int rStart, int rEnd) {
                     if (ni >= 0 && ni <= localRows + 1 && nj >= 0 && nj < globalN) {
                         if (grid[ni][nj] == TREE)
                             newGrid[ni][nj] = BURNING;
+                        }
                     }
                 }
+
+
+
+
+                
             }
         }
     }
