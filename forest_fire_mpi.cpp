@@ -144,7 +144,6 @@ bool step(std::vector<std::vector<states>> &grid, int rStart, int rEnd) {
                 int nCount = moore ? 8 : 4;
                 
                 for (int k = 0; k < nCount; k++) {
-                    // Determine neighbor (ni, nj)
                     int ni, nj;
                     if (moore) {
                         ni = i + d8i[k];
